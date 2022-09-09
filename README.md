@@ -180,3 +180,45 @@ help:add_group {
     ruled = { rule_any = { class = { "firefox", "Firefox" } } },
 }
 ```
+
+## Style
+
+In `theme.lua`
+
+```lua
+theme.help_* = ...
+```
+or
+
+```lua
+local help = powerful.help.new {
+    style = {
+        width = dpi(1200),
+        height = dpi(800),
+        columns = 2,
+        padding = dpi(16),
+        spacing = dpi(8),
+        bg = theme.bg_normal,
+        fg = theme.fg_normal,
+        status_bg = theme.bg_focus,
+        status_fg = theme.fg_focus,
+        status_spacing = dpi(32),
+        search_highlight_bg = theme.help_search_highlight_bg,
+        search_highlight_fg = theme.bg_urgent,
+        search_dim_bg = theme.help_search_dim_bg,
+        search_dim_fg = "#818181",
+        search_cursor_bg = theme.fg_focus,
+        search_cursor_fg = theme.bg_focus,
+        search_cursor_underline = "none",
+        border_width = theme.border_width,
+        border_color = theme.border_color_active,
+        group_bg = theme.bg_focus,
+        group_fg = theme.fg_focus,
+        group_ruled_bg = theme.bg_urgent,
+        group_ruled_fg = theme.fg_urgent,
+        opacity = 1,
+        shape = nil,
+        labels = {},
+    },
+}
+```
