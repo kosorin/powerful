@@ -1,6 +1,6 @@
 # Powerful
 
-A simple popup widget which shows current bindings and their descriptions. Inspired by default Awesome hotkeys popup.
+A simple popup widget for [Awesome window manager](https://github.com/awesomeWM/awesome) which shows current bindings and their descriptions. Inspired by default Awesome hotkeys popup.
 
 ![Screenshot](img/screenshot.png)
 
@@ -36,60 +36,60 @@ Copy source files to `powerful` directory in your Awesome config directory (e.g.
 
 3. add bindings
 
-- Custom bindings
+   - Custom bindings
 
-    Add a group with custom bindings
+       Add a group with custom bindings
 
-    ```lua
-    help:add_group {
-        name = "firefox",
-        ruled = { rule_any = { class = { "firefox", "Firefox" } } },
-        { modifiers = { mod.alt }, from = "1", to = "9", description = "go to tab" },
-        { modifiers = { mod.control }, "t", description = "new tab" },
-        { modifiers = { mod.control }, "w", description = "close tab" },
-        { modifiers = { mod.control }, "Tab", description = "next tab" },
-        { modifiers = { mod.control, mod.shift }, "Tab", description = "previous tab" },
-    }
-    ```
+       ```lua
+       help:add_group {
+           name = "firefox",
+           ruled = { rule_any = { class = { "firefox", "Firefox" } } },
+           { modifiers = { mod.alt }, from = "1", to = "9", description = "go to tab" },
+           { modifiers = { mod.control }, "t", description = "new tab" },
+           { modifiers = { mod.control }, "w", description = "close tab" },
+           { modifiers = { mod.control }, "Tab", description = "next tab" },
+           { modifiers = { mod.control, mod.shift }, "Tab", description = "previous tab" },
+       }
+       ```
 
-- Awesome bindings
+   - Awesome bindings
 
-    By default Awesome bindings are shown with custom bindings.
-    However they must be created using this library.
+      By default Awesome bindings are shown with custom bindings.
+      However they must be created using this library.
 
-    So instead of this:
+      So instead of this:
 
-    ```lua
-    awful.keyboard.append_global_keybinding(
-        awful.key {
-            modifiers = { mod.super },
-            key = "Return",
-            group = "launcher",
-            description = "open a terminal",
-            on_press = function() awful.spawn("alacritty") end,
-        }
-    )
-    ```
+      ```lua
+      awful.keyboard.append_global_keybinding(
+          awful.key {
+              modifiers = { mod.super },
+              key = "Return",
+              group = "launcher",
+              description = "open a terminal",
+              on_press = function() awful.spawn("alacritty") end,
+          }
+      )
+      ```
 
-    Use this:
+      Use this:
 
-    ```lua
-    powerful.binding.add_global(
-        powerful.binding.new {
-            modifiers = { mod.super },
-            triggers = "Return",
-            path = "launcher",
-            description = "open a terminal",
-            on_press = function() awful.spawn("alacritty") end,
-        }
-    )
-    ```
+      ```lua
+      powerful.binding.add_global(
+          powerful.binding.new {
+              modifiers = { mod.super },
+              triggers = "Return",
+              path = "launcher",
+              description = "open a terminal",
+              on_press = function() awful.spawn("alacritty") end,
+          }
+      )
+      ```
     
-1. Show popup
+4. Show popup
 
-```lua
-help:show()
-```
+    ```lua
+    help:show()
+    ```
 
 # Usage/examples
 
