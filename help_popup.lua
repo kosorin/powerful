@@ -66,9 +66,10 @@ local function get_trigger_markup(self, binding, max_triggers)
             local trigger_count = math.min(max_triggers or math.maxinteger, #trigger_labels)
             trigger_text = table.concat(trigger_labels, separator_slash, 1, trigger_count)
         end
-        if binding.target then
-            trigger_text = trigger_text .. trigger_target(binding.target)
-        end
+    end
+
+    if binding.target then
+        trigger_text = trigger_text .. trigger_target(binding.target)
     end
 
     return modifier_markup .. trigger_box(trigger_text)
