@@ -204,6 +204,7 @@ local function create_bindings(self, bindings)
     end
 
     self.bindings = {
+        global = create(bindings.global, {}, function() self:hide() end),
         hide = create(bindings.hide,
             {
                 triggers = { "q", "Escape", btn.left, btn.right, btn.middle },
@@ -243,16 +244,12 @@ local function create_bindings(self, bindings)
     }
 
     local keygrabber_bindings = {
-        self.bindings.global_hide,
+        self.bindings.global,
         self.bindings.hide,
         self.bindings.search,
         self.bindings.next_page,
         self.bindings.previous_page,
     }
-
-    if bindings.global_hide then
-        table.insert(keygrabber_bindings, create(bindings.global_hide, {}, self.bindings.hide.on_press))
-    end
 
     self.keygrabber = awful.keygrabber {
         keybindings = pbinding.awful_keys(keygrabber_bindings),
