@@ -77,6 +77,22 @@ for i = 1, 35 do
     table.insert(binding.group.fkeys, { trigger = "F" .. i, index = i })
 end
 
+local modifier_hash_data = { length = 0 }
+
+function binding.get_modifiers_hash(modifiers)
+    local hash = 0
+    for _, v in ipairs(modifiers) do
+        local modifier_hash = modifier_hash_data[v]
+        if not modifier_hash then
+            modifier_hash = 1 << modifier_hash_data.length
+            modifier_hash_data[v] = modifier_hash
+            modifier_hash_data.length = modifier_hash_data.length + 1
+        end
+        hash = hash | modifier_hash
+    end
+    return hash
+end
+
 local Binding = {}
 
 local function _ensure_awful_bindings(self)
