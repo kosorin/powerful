@@ -270,6 +270,8 @@ local function create_style(self, style)
         font = style.font or theme.help_font or "Monospace 9",
         bg = style.bg or theme.help_bg or theme.bg_normal,
         fg = style.fg or theme.help_fg or theme.fg_normal,
+        trigger_bg = style.trigger_bg or theme.help_trigger_bg or theme.fg_normal,
+        trigger_bg_alpha = style.trigger_bg_alpha or theme.help_trigger_bg_alpha or "17%",
         status_bg = style.status_bg or theme.help_status_bg or theme.bg_focus,
         status_fg = style.status_fg or theme.help_status_fg or theme.fg_focus,
         status_spacing = style.status_spacing or theme.help_status_spacing or dpi(32),

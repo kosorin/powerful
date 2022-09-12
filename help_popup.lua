@@ -38,7 +38,8 @@ end
 local function get_trigger_markup(self, binding, max_triggers)
 
     local function trigger_box(content)
-        return "<span background='" .. self.style.fg .. "' bgalpha='20%'> " .. content .. " </span>"
+        return "<span background='" .. self.style.trigger_bg .. "' bgalpha='" .. self.style.trigger_bg_alpha .. "'> "
+            .. content .. " </span>"
     end
 
     local function trigger_target(target)
