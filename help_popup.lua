@@ -15,23 +15,123 @@ local function get_modifier_label(self, modifier)
 end
 
 local function get_trigger_label(self, trigger)
-    if type(trigger) ~= "string" then
-        return self.style.labels[trigger] or tostring(trigger)
+    if type(trigger) == "string" then
+        local keysym, keyprint = awful.keyboard.get_key_name(trigger)
+        return self.style.labels[keysym] or keyprint or keysym or trigger
     end
-    local keysym, keyprint = awful.keyboard.get_key_name(trigger)
-    return self.style.labels[keysym] or keyprint or keysym or trigger
+    return self.style.labels[trigger] or tostring(trigger)
 end
 
-local separator_slash = "<span fgalpha='50%' size='smaller'> / </span>"
-local separator_plus = "<span fgalpha='50%'>+</span>"
-local separator_range = "<span fgalpha='50%'>..</span>"
+local function highlight_text(self, text, args)
+
+    text = text or ""
+
+    local function clear()
+        return text, true
+    end
+
+    if not args then
+        return clear()
+    end
+
+    local function dim()
+        if args.clear_on_dim then
+            return clear()
+        end
+        local dim_begin = "<span"
+        if self.style.search_dim_bg then
+            dim_begin = dim_begin .. " background='" .. self.style.search_dim_bg .. "'"
+        end
+        dim_begin = dim_begin .. " foreground='" .. self.style.search_dim_fg .. "'"
+        dim_begin = dim_begin .. ">"
+        local dim_end = "</span>"
+        return dim_begin .. text .. dim_end, false
+    end
+
+    if not args.search_terms or #text == 0 then
+        return clear()
+    elseif #args.search_terms == 0 then
+        return dim()
+    end
+
+    local substitutions = {}
+
+    local function is_available(from, to)
+        for _, s in ipairs(substitutions) do
+            if from <= s.to and to >= s.from then
+                return false
+            end
+        end
+        return true
+    end
+
+    local lower_text = string.lower(text)
+    for _, st in ipairs(args.search_terms) do
+        local from = 1
+        local to
+        while true do
+            from, to = string.find(lower_text, st, from, true)
+            if from == nil then
+                break
+            end
+            if is_available(from, to) then
+                table.insert(substitutions, { matched = true, from = from, to = to })
+            end
+            from = to + 1
+        end
+    end
+
+    if #substitutions == 0 then
+        return dim()
+    end
+
+    table.sort(substitutions, function(a, b) return a.from < b.from end)
+
+    local parts = {}
+    local length = #text
+    local next_substitution = substitutions[1]
+    local i = 1
+    while i <= length do
+        if next_substitution then
+            if next_substitution.from == i then
+                table.insert(parts, next_substitution)
+                i = next_substitution.to + 1
+                table.remove(substitutions, 1)
+                next_substitution = substitutions[1]
+            else
+                table.insert(parts, { from = i, to = next_substitution.from - 1 })
+                i = next_substitution.from
+            end
+        else
+            table.insert(parts, { from = i, to = length })
+            break
+        end
+    end
+
+    local highlight_begin = "<span"
+    if self.style.search_highlight_bg then
+        highlight_begin = highlight_begin .. " background='" .. self.style.search_highlight_bg .. "' bgalpha='100%'"
+    end
+    highlight_begin = highlight_begin .. " foreground='" .. self.style.search_highlight_fg .. "'"
+    highlight_begin = highlight_begin .. ">"
+    local highlight_end = "</span>"
+
+    return table.concat(gtable.map(function(part)
+        local capture = string.sub(text, part.from, part.to)
+        if part.matched then
+            return highlight_begin .. capture .. highlight_end
+        else
+            return capture
+        end
+    end, parts), ""), true
+end
 
 local function get_group_markup(self, node, path)
     local is_ruled = node:any_parent(function(n) return n.state.ruled end, true)
     local group_bg = is_ruled and self.style.group_ruled_bg or self.style.group_bg
     local group_fg = is_ruled and self.style.group_ruled_fg or self.style.group_fg
     local group_style = "background='" .. group_bg .. "' foreground='" .. group_fg .. "'"
-    local group_text = table.concat(path, separator_slash)
+    local group_text = table.concat(path, self.style.separator_slash_markup)
     return "<span " .. group_style .. "> " .. group_text .. " </span>"
 end
 
@@ -48,9 +148,11 @@ local function get_trigger_markup(self, binding, max_triggers)
 
     local modifier_markup = ""
     if #binding.modifiers > 0 then
-        local modifier_labels = gtable.map(
-            function(m) return trigger_box(get_modifier_label(self, m)) end, binding.modifiers)
-        modifier_markup = table.concat(modifier_labels, separator_plus) .. separator_plus
+        local modifier_label_markups = gtable.map(function(m)
+            return trigger_box(get_modifier_label(self, m))
+        end, binding.modifiers)
+        modifier_markup = table.concat(modifier_label_markups, self.style.separator_plus_markup) ..
+            self.style.separator_plus_markup
     end
 
     local trigger_text
@@ -60,12 +162,13 @@ local function get_trigger_markup(self, binding, max_triggers)
         if binding.from and binding.to then
             local from = get_trigger_label(self, binding.from)
             local to = get_trigger_label(self, binding.to)
-            trigger_text = from .. separator_range .. to
+            trigger_text = from .. self.style.separator_range_markup .. to
         else
-            local trigger_labels = gtable.map(
-                function(t) return get_trigger_label(self, t.trigger) end, binding.triggers)
+            local trigger_labels = gtable.map(function(t)
+                return get_trigger_label(self, t.trigger)
+            end, binding.triggers)
             local trigger_count = math.min(max_triggers or math.maxinteger, #trigger_labels)
-            trigger_text = table.concat(trigger_labels, separator_slash, 1, trigger_count)
+            trigger_text = table.concat(trigger_labels, self.style.separator_slash_markup, 1, trigger_count)
         end
     end
 
@@ -74,6 +177,17 @@ local function get_trigger_markup(self, binding, max_triggers)
     end
 
     return modifier_markup .. trigger_box(trigger_text)
+end
+
+local function get_description_markup(self, binding, highlight_args)
+    return highlight_text(self, binding.description, highlight_args)
+end
+
+local function get_markup_geometry(self, markup)
+    return wibox.widget.textbox.get_markup_geometry(
+        markup,
+        self.context.screen,
+        self.style.font)
 end
 
 local function parse_data(self)
@@ -85,10 +199,7 @@ local function parse_data(self)
         local group = node.state
         if #path > 0 and #group > 0 then
             local group_markup = get_group_markup(self, node, path)
-            local group_size = wibox.widget.textbox.get_markup_geometry(
-                group_markup,
-                self.context.screen,
-                self.style.font)
+            local group_size = get_markup_geometry(self, group_markup)
             local group_data = {
                 markup = group_markup,
                 size = group_size,
@@ -100,23 +211,21 @@ local function parse_data(self)
             for _, binding in ipairs(group) do
                 if binding.description then
                     local trigger_markup = get_trigger_markup(self, binding)
-                    local description_text = binding.description
-                    local trigger_size = wibox.widget.textbox.get_markup_geometry(
-                        trigger_markup,
-                        self.context.screen,
-                        self.style.font)
-                    local description_size = wibox.widget.textbox.get_markup_geometry(
-                        description_text,
-                        self.context.screen,
-                        self.style.font)
+                    local trigger_size = get_markup_geometry(self, trigger_markup)
+                    local description_markup = get_description_markup(self, binding)
+                    local description_size = get_markup_geometry(self, description_markup)
                     local item = {
+                        binding = binding,
                         trigger = {
                             markup = trigger_markup,
                             size = trigger_size,
+                            highlighted = nil,
+                            widget = nil,
                         },
                         description = {
-                            text = binding.description,
+                            markup = description_markup,
                             size = description_size,
+                            highlighted = nil,
                             widget = nil,
                         },
                     }
@@ -142,8 +251,9 @@ local function create_pages(self, filter_highlighted)
 
     local data = self.context.data
 
-    local line_height = wibox.widget.textbox.get_markup_geometry("", self.context.screen, self.style.font).height
-    local status_bar_height = line_height + self.style.padding
+    local line_size = get_markup_geometry(self, "foobar")
+
+    local status_bar_height = line_size.height + self.style.padding
 
     local width = math.floor(self.context.width / self.style.columns) - ((self.style.columns - 1) * self.style.padding)
     local height = self.context.height - (2 * self.style.padding) - status_bar_height
@@ -152,9 +262,7 @@ local function create_pages(self, filter_highlighted)
 
     -- It's useless to have too narrow description column,
     -- so set the minimum width according to the width of the "foobar" text
-    local min_description_width = wibox.widget.textbox.get_markup_geometry("foobar", self.context.screen, self.style.font)
-        .width
-    local show_description_column = max_description_width >= min_description_width
+    local show_description_column = max_description_width >= line_size.width
 
     if width < 0 or width < data.max_trigger_width or height < 0 then
         self:set_page(nil, true)
@@ -215,14 +323,14 @@ local function create_pages(self, filter_highlighted)
         local item_count = 0
         for j = next_column.item, #group.items do
             local item = group.items[j]
-            if not filter_highlighted or item.description.highlighted then
+            if not filter_highlighted or item.trigger.highlighted or item.description.highlighted then
                 local trigger_offset_x = data.max_trigger_width - item.trigger.size.width
                 local trigger_widget = wibox.widget {
                     widget = wibox.widget.textbox,
                     font = self.style.font,
                     align = "right",
                     valign = "top",
-                    markup = item.trigger.markup,
+                    markup = item.trigger.highlighted or item.trigger.markup,
                     point = {
                         x = offset_x + (show_description_column and trigger_offset_x or 0),
                         y = offset_y,
@@ -230,6 +338,7 @@ local function create_pages(self, filter_highlighted)
                         height = item.trigger.size.height,
                     }
                 }
+                item.trigger.widget = trigger_widget
                 local description_widget
                 if show_description_column then
                     description_widget = wibox.widget {
@@ -237,7 +346,7 @@ local function create_pages(self, filter_highlighted)
                         font = self.style.font,
                         align = "left",
                         valign = "top",
-                        markup = item.description.highlighted or item.description.text,
+                        markup = item.description.highlighted or item.description.markup,
                         point = {
                             x = offset_x + data.max_trigger_width + self.style.spacing,
                             y = offset_y,
@@ -245,8 +354,7 @@ local function create_pages(self, filter_highlighted)
                         },
                     }
                     item.description.widget = description_widget
-                    local line_spacing_factor = 1 + (self.style.spacing / item.description.size.height)
-                    description_widget._private.layout:set_line_spacing(line_spacing_factor) -- TODO: use new api
+                    description_widget.line_spacing_factor = 1 + (self.style.spacing / item.description.size.height)
                     description_widget.point.height = description_widget:get_height_for_width(
                         max_description_width, self.context.screen) + self.style.spacing
                     offset_y = offset_y +
@@ -306,142 +414,27 @@ local function create_pages(self, filter_highlighted)
     self:set_page(nil, true)
 end
 
-local function highlight_text(self, search_terms, text, clear_on_dim)
-    -- If search_terms is nil then clear all search formatting
-    -- If search_terms is empty table then dim all items
-
-    local function clear()
-        return nil
-    end
-
-    local function dim()
-        if clear_on_dim then
-            return clear()
-        end
-        local dim_begin = "<span"
-        if self.style.search_dim_bg then
-            dim_begin = dim_begin .. " background='" .. self.style.search_dim_bg .. "'"
-        end
-        dim_begin = dim_begin .. " foreground='" .. self.style.search_dim_fg .. "'"
-        dim_begin = dim_begin .. ">"
-        local dim_end = "</span>"
-        return dim_begin .. text .. dim_end
-    end
-
-    text = text or ""
-
-    if not search_terms or #text == 0 then
-        return clear()
-    elseif #search_terms == 0 then
-        return dim()
-    end
-
-    local substitutions = {}
-
-    local function is_available(from, to)
-        for _, s in ipairs(substitutions) do
-            if from <= s.to and to >= s.from then
-                return false
-            end
-        end
-        return true
-    end
-
-    for _, st in ipairs(search_terms) do
-        local from = 1
-        local to
-        while true do
-            from, to = string.find(text, st, from, true)
-            if from == nil then
-                break
-            end
-            if is_available(from, to) then
-                table.insert(substitutions, { capture = st, from = from, to = to })
-            end
-            from = to + 1
-        end
-    end
-
-    if #substitutions == 0 then
-        return dim()
-    end
-
-    table.sort(substitutions, function(a, b) return a.from < b.from end)
-
-    local parts = {}
-    local length = #text
-    local next_substitution = substitutions[1]
-    local i = 1
-    while i <= length do
-        if next_substitution then
-            if next_substitution.from == i then
-                table.insert(parts, next_substitution)
-                i = next_substitution.to + 1
-                table.remove(substitutions, 1)
-                next_substitution = substitutions[1]
-            else
-                table.insert(parts, { from = i, to = next_substitution.from - 1 })
-                i = next_substitution.from
-            end
-        else
-            table.insert(parts, { from = i, to = length })
-            break
-        end
-    end
-
-    local highlight_begin = "<span"
-    if self.style.search_highlight_bg then
-        highlight_begin = highlight_begin .. " background='" .. self.style.search_highlight_bg .. "'"
-    end
-    highlight_begin = highlight_begin .. " foreground='" .. self.style.search_highlight_fg .. "'"
-    highlight_begin = highlight_begin .. ">"
-    local highlight_end = "</span>"
-
-    return table.concat(gtable.map(function(part)
-        if part.capture then
-            return highlight_begin .. part.capture .. highlight_end
-        else
-            return string.sub(text, part.from, part.to)
-        end
-    end, parts), "")
-end
-
-local function serialize_search_terms(terms)
-    return terms and table.concat(terms, " ") or nil
-end
-
 local function get_search_terms(query)
-    -- If the query is nil then clear all search formatting => search_terms = nil
-    -- If the query is empty string then dim all items => search_terms = {}
-
     if not query then
-        return
+        return {}
     end
 
+    local unique_term_map = {}
     local terms = {}
-    query = string.gsub(query, "[^a-zA-Z0-9]+", " ")
+    query = string.gsub(query, "%s+", " ")
     for term in string.gmatch(query, "([^%s]+)") do
-        if #term > 0 then
-            table.insert(terms, term)
+        term = string.lower(term)
+        if #term > 0 and not unique_term_map[term] then
+            unique_term_map[term] = true
+            if pcall(string.find, "", term) then
+                table.insert(terms, term)
+            end
         end
     end
+
     table.sort(terms, function(a, b) return #a > #b end)
-    return terms, serialize_search_terms(terms)
-end
 
-local function process_search_args(self, query, is_end_of_search)
-    local last_args = self.context.last_search_args
-
-    local terms, serialized_terms = get_search_terms(query)
-
-    if last_args.serialized_terms == serialized_terms and last_args.is_end_of_search == is_end_of_search then
-        return false
-    end
-
-    last_args.query = query
-    last_args.serialized_terms = serialized_terms
-    last_args.is_end_of_search = is_end_of_search
-    return true, terms
+    return terms
 end
 
 local function search(self, query, is_end_of_search)
@@ -449,15 +442,27 @@ local function search(self, query, is_end_of_search)
         return
     end
 
-    local continue, terms = process_search_args(self, query, is_end_of_search)
-    if not continue then
+    self.context.last_search_args.query = query
+
+    local terms = get_search_terms(query)
+
+    local hash = tostring(not not is_end_of_search) .. "\t" .. (table.concat(terms, " ") or "")
+    if self.context.last_search_args.hash == hash then
         return
     end
+    self.context.last_search_args.hash = hash
+
+    local highlight_args = {
+        search_terms = terms,
+        clear_on_dim = is_end_of_search,
+    }
 
     for _, group in ipairs(self.context.data) do
         for _, item in ipairs(group.items) do
-            item.description.highlighted = highlight_text(self, terms, item.description.text, is_end_of_search)
-            item.description.widget:set_markup(item.description.highlighted or item.description.text)
+            item.trigger.highlighted = get_trigger_markup(self, item.binding)
+            item.trigger.widget:set_markup(item.trigger.highlighted)
+            item.description.highlighted = get_description_markup(self, item.binding, highlight_args)
+            item.description.widget:set_markup(item.description.highlighted)
         end
     end
 end
@@ -511,7 +516,7 @@ local function create_status_bar(self)
             align = "left",
             valign = "top",
             markup = get_trigger_markup(self, binding, 2) ..
-                (binding.description and (" " .. binding.description) or ""),
+                (binding.description and (" " .. get_description_markup(self, binding)) or ""),
         }
     end
 
@@ -689,8 +694,7 @@ function HelpPopup:show(s, binding_tree)
         is_searching = false,
         last_search_args = {
             query = nil,
-            serialized_terms = nil,
-            is_end_of_search = nil,
+            hash = nil,
         },
         screen = s,
         width = (self.style.width < wa.width and self.style.width or wa.width),
