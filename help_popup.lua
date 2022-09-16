@@ -203,6 +203,7 @@ local function parse_data(self)
             local group_data = {
                 markup = group_markup,
                 size = group_size,
+                page_break = group.page_break,
                 items = {},
             }
             if data.max_description_width < group_size.width then
@@ -282,6 +283,7 @@ local function create_pages(self, filter_highlighted)
     end
 
     local next_column = { group = 1, item = 1 }
+    local ignore_page_break = {}
     ::next_column::
     local current_column = {}
     local is_first_column = (#columns % self.style.columns) == 0
@@ -292,6 +294,20 @@ local function create_pages(self, filter_highlighted)
         local initial_offset_y = offset_y
 
         local group = data[i]
+
+        if not ignore_page_break[i] and group.page_break then
+            ignore_page_break[i] = true
+            if #columns > 0 then
+                next_column.group = i
+                next_column.item = 1
+                if add_column(current_column) then
+                    goto next_column
+                else
+                    goto done
+                end
+            end
+        end
+
         local group_widget
         if show_description_column and (next_column.item == 1 or is_first_column) then
             group_widget = wibox.widget {
@@ -386,9 +402,10 @@ local function create_pages(self, filter_highlighted)
             end
         end
         next_column.item = 1
-        offset_y = offset_y + self.style.padding
 
-        if item_count == 0 then
+        if item_count > 0 then
+            offset_y = offset_y + self.style.padding
+        else
             offset_y = initial_offset_y
         end
     end
