@@ -79,7 +79,7 @@ local help = {
 
 local Help = {}
 
-local global_order = 100000
+local last_group_order = 0
 
 local function default_group_sort(a, b)
     local ga, gb = a.state, b.state
@@ -124,9 +124,11 @@ local function merge_group(tree, node, group_args)
     end
     for _, child_args in ipairs(group_args.groups) do
         local child, is_new = tree:get_or_add_node(node, child_args.name, child_args)
-        if is_new and not child_args.order then
-            child_args.order = global_order
-            global_order = global_order + 1
+        if is_new then
+            if not child_args.order then
+                child_args.order = last_group_order + 1
+            end
+            last_group_order = child_args.order
         end
         for i = 1, #child_args do
             local binding = pbinding.new(child_args[i])

@@ -136,7 +136,8 @@ local function _ensure_awful_bindings(self)
     end
 end
 
-local global_order = 100000
+local last_order = 0
+
 local trigger_types = {
     string = "key",
     number = "button",
@@ -158,9 +159,9 @@ function binding.new(args)
     }
 
     if not self.order then
-        global_order = global_order + 1
-        self.order = global_order
+        self.order = last_order + 1
     end
+    last_order = self.order
 
     local triggers = args.triggers or args
 
