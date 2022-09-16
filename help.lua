@@ -291,11 +291,13 @@ local function create_style(self, style)
         opacity = style.opacity or theme.help_opacity or 1,
         shape = style.shape or theme.help_shape or nil,
         labels = gtable.crush(gtable.clone(help.default_labels, false), style.labels or theme.help_labels or {}),
-        separator_slash_markup = style.separator_slash_markup or theme.help_separator_slash_markup or
+        group_path_separator_markup = style.group_path_separator_markup or theme.help_group_path_separator_markup or
             "<span fgalpha='50%' size='smaller'> / </span>",
-        separator_plus_markup = style.separator_plus_markup or theme.help_separator_plus_markup or
+        slash_separator_markup = style.slash_separator_markup or theme.help_slash_separator_markup or
+            "<span fgalpha='50%' size='smaller'> / </span>",
+        plus_separator_markup = style.plus_separator_markup or theme.help_plus_separator_markup or
             "<span fgalpha='50%'>+</span>",
-        separator_range_markup = style.separator_range_markup or theme.help_separator_range_markup or
+        range_separator_markup = style.range_separator_markup or theme.help_range_separator_markup or
             "<span fgalpha='50%'>..</span>",
     }
 end

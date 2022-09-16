@@ -133,7 +133,7 @@ local function get_group_markup(self, node, path)
     local fg = select(2, node:find_parent(function(n) return n.state.fg end, true))
         or (is_ruled and self.style.group_ruled_fg or self.style.group_fg)
     local style = "background='" .. bg .. "' foreground='" .. fg .. "'"
-    local text = table.concat(path, self.style.separator_slash_markup)
+    local text = table.concat(path, self.style.group_path_separator_markup)
     return "<span " .. style .. "> " .. text .. " </span>"
 end
 
@@ -153,8 +153,8 @@ local function get_trigger_markup(self, binding, max_triggers)
         local modifier_label_markups = gtable.map(function(m)
             return trigger_box(get_modifier_label(self, m))
         end, binding.modifiers)
-        modifier_markup = table.concat(modifier_label_markups, self.style.separator_plus_markup) ..
-            self.style.separator_plus_markup
+        modifier_markup = table.concat(modifier_label_markups, self.style.plus_separator_markup) ..
+            self.style.plus_separator_markup
     end
 
     local trigger_text
@@ -164,13 +164,13 @@ local function get_trigger_markup(self, binding, max_triggers)
         if binding.from and binding.to then
             local from = get_trigger_label(self, binding.from)
             local to = get_trigger_label(self, binding.to)
-            trigger_text = from .. self.style.separator_range_markup .. to
+            trigger_text = from .. self.style.range_separator_markup .. to
         else
             local trigger_labels = gtable.map(function(t)
                 return get_trigger_label(self, t.trigger)
             end, binding.triggers)
             local trigger_count = math.min(max_triggers or math.maxinteger, #trigger_labels)
-            trigger_text = table.concat(trigger_labels, self.style.separator_slash_markup, 1, trigger_count)
+            trigger_text = table.concat(trigger_labels, self.style.slash_separator_markup, 1, trigger_count)
         end
     end
 
