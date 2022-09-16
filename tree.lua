@@ -36,24 +36,28 @@ function Node:traverse(method, filter)
     end
 end
 
-function Node:any_parent(predicate, include_self)
+function Node:find_parent(predicate, include_self)
     local node = include_self and self or self.parent
     while node do
-        if predicate(node) then
-            return true
+        local result = predicate(node)
+        if result then
+            return node, result
         end
         node = node.parent
     end
-    return false
+    return nil
 end
 
-function Node:any_child(predicate, include_self)
+function Node:find_child(predicate, include_self)
     for node in self:traverse() do
-        if (include_self or node ~= self) and predicate(node) then
-            return true
+        if include_self or node ~= self then
+            local result = predicate(node)
+            if result then
+                return node, result
+            end
         end
     end
-    return false
+    return nil
 end
 
 local Tree = {}

@@ -127,12 +127,14 @@ local function highlight_text(self, text, args)
 end
 
 local function get_group_markup(self, node, path)
-    local is_ruled = node:any_parent(function(n) return n.state.ruled end, true)
-    local group_bg = is_ruled and self.style.group_ruled_bg or self.style.group_bg
-    local group_fg = is_ruled and self.style.group_ruled_fg or self.style.group_fg
-    local group_style = "background='" .. group_bg .. "' foreground='" .. group_fg .. "'"
-    local group_text = table.concat(path, self.style.separator_slash_markup)
-    return "<span " .. group_style .. "> " .. group_text .. " </span>"
+    local is_ruled = node:find_parent(function(n) return n.state.ruled end, true)
+    local bg = select(2, node:find_parent(function(n) return n.state.bg end, true))
+        or (is_ruled and self.style.group_ruled_bg or self.style.group_bg)
+    local fg = select(2, node:find_parent(function(n) return n.state.fg end, true))
+        or (is_ruled and self.style.group_ruled_fg or self.style.group_fg)
+    local style = "background='" .. bg .. "' foreground='" .. fg .. "'"
+    local text = table.concat(path, self.style.separator_slash_markup)
+    return "<span " .. style .. "> " .. text .. " </span>"
 end
 
 local function get_trigger_markup(self, binding, max_triggers)
