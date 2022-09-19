@@ -1,6 +1,7 @@
 local awful = require("awful")
 local wibox = require("wibox")
 local gtable = require("gears.table")
+local gcolor = require("gears.color")
 local pbinding = require("powerful.binding")
 local beautiful = require("beautiful")
 local dpi = beautiful.xresources.apply_dpi
@@ -256,7 +257,7 @@ local function create_pages(self, filter_highlighted)
 
     local line_size = get_markup_geometry(self, "foobar")
 
-    local status_bar_height = line_size.height + self.style.padding
+    local status_bar_height = line_size.height + (2 * self.style.padding)
 
     local width = math.floor(self.context.width / self.style.columns) - ((self.style.columns - 1) * self.style.padding)
     local height = self.context.height - (2 * self.style.padding) - status_bar_height
@@ -608,14 +609,16 @@ local function create_status_bar(self)
         bg = self.style.status_bg,
         fg = self.style.status_fg,
         set_status_bar = function(widget)
-            self.widgets.status_bar_container.widget.children = { widget }
+            self.widgets.status_bar_container.widget.widget.children = { widget }
         end,
         {
             widget = wibox.container.margin,
-            left = self.style.padding,
-            right = self.style.padding,
-            top = self.style.padding / 2,
-            bottom = self.style.padding / 2,
+            top = self.style.border_width,
+            color = self.style.border_color,
+            {
+                widget = wibox.container.margin,
+                margins = self.style.padding,
+            },
         },
     }
 
@@ -623,8 +626,10 @@ local function create_status_bar(self)
 end
 
 local function create_popup(self)
-    self.widgets.page_container = wibox.container.margin(nil,
-        self.style.padding, self.style.padding, self.style.padding, self.style.padding)
+    self.widgets.page_container = wibox.widget {
+        widget = wibox.container.margin,
+        margins = self.style.padding,
+    }
     self.widgets.popup = awful.popup {
         ontop = true,
         visible = false,
@@ -644,12 +649,16 @@ local function create_popup(self)
                 wibox.widget {
                     layout = wibox.layout.align.vertical,
                     nil,
-                    self.widgets.page_container,
+                    {
+                        widget = wibox.container.background,
+                        bg = self.style.bg,
+                        self.widgets.page_container,
+                    },
                     self.widgets.status_bar_container,
                 }
             },
         },
-        bg = self.style.bg,
+        bg = gcolor.transparent,
         fg = self.style.fg,
         opacity = self.style.opacity,
         shape = self.style.shape,
