@@ -210,7 +210,7 @@ local function create_bindings(self, bindings)
         hide = create(bindings.hide,
             {
                 triggers = { "q", "Escape", btn.left, btn.right, btn.middle },
-                description = "hide this help",
+                description = "hide",
             },
             function() self:hide() end),
         previous_page = create(bindings.previous_page,
