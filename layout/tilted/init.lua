@@ -22,9 +22,9 @@ tilted.cursors = {
     { "bottom_left_corner", "bottom_side", "bottom_right_corner" },
 }
 
---- Resize only neighbor clients.
+--- Resize only adjacent clients.
 -- @field powerful.layout.tilted.resize_only_neighbors
-tilted.resize_only_neighbors = false
+tilted.resize_only_adjacent = false
 
 --- Jump mouse cursor to the client's corner when resizing it.
 -- @field powerful.layout.tilted.resize_jump_to_corner
@@ -270,6 +270,13 @@ local function fit(items, total_size)
 end
 
 local function resize_fit(items, start, direction, new_size, apply)
+    local stop = tilted.resize_only_adjacent
+        and start + direction
+        or direction < 0 and 1 or #items
+    if start == stop then
+        return
+    end
+
     local resize_item = items[start]
     if resize_item.size == new_size then
         return
@@ -284,9 +291,8 @@ local function resize_fit(items, start, direction, new_size, apply)
     local full_size = resize_item.size
     local total_size = 0
     local total_min_size = 0
-
     local new_items = {}
-    local stop = direction < 0 and 1 or #items
+
     for i = start + direction, stop, direction do
         local item = items[i]
         full_factor = full_factor + item.factor
