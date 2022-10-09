@@ -58,6 +58,15 @@ local function get_decoration_size(client, useless_gap)
     return decoration_size
 end
 
+local function apply_padding(workarea, padding)
+    return {
+        x = workarea.x + padding.left,
+        y = workarea.y + padding.top,
+        width = workarea.width - padding.left - padding.right,
+        height = workarea.height - padding.top - padding.bottom,
+    }
+end
+
 local function inflate(geometry, size)
     return {
         x = geometry.x - size,
@@ -137,23 +146,45 @@ local function resize(orientation, screen, tag, client, corner)
         directions[_y] = directions[_y] * -1
     end
 
-    local cursor = tilted.cursors[directions[_y] + 2][directions[_x] + 2]
+    local padding_directions = { x = 0, y = 0 }
+    if directions[_x] == 0 then
+        if find(corner, "left", nil, true) then
+            padding_directions.x = -1
+        elseif find(corner, "right", nil, true) then
+            padding_directions.x = 1
+        end
+    end
+    if directions[_y] == 0 then
+        if find(corner, "top", nil, true) then
+            padding_directions.y = -1
+        elseif find(corner, "bottom", nil, true) then
+            padding_directions.y = 1
+        end
+    end
 
-    if directions.x == 0 and directions.y == 0 then
+    local cursor_icon_x = directions[_x] ~= 0 and directions[_x] or padding_directions.x
+    local cursor_icon_y = directions[_y] ~= 0 and directions[_y] or padding_directions.y
+    local cursor = tilted.cursors[cursor_icon_y + 2][cursor_icon_x + 2]
+
+    if cursor_icon_x == 0 and cursor_icon_y == 0 then
         capi.mousegrabber.run(function(coords) return any_button(coords.buttons) end, cursor)
         return
     end
 
-    local initial_geometry = inflate(client:geometry(), client.border_width + parameters.useless_gap)
+    local full_workarea = parameters.workarea
+    local workarea = apply_padding(full_workarea, layout_descriptor.padding)
+    local useless_gap = parameters.useless_gap
+
+    local initial_geometry = inflate(client:geometry(), client.border_width + useless_gap)
     initial_geometry = {
         x = initial_geometry.x,
         y = initial_geometry.y,
-        width = (is_horizontal and column_descriptor or item_descriptor).factor * parameters.workarea.width,
-        height = (is_horizontal and item_descriptor or column_descriptor).factor * parameters.workarea.height,
+        width = (is_horizontal and column_descriptor or item_descriptor).factor * workarea.width,
+        height = (is_horizontal and item_descriptor or column_descriptor).factor * workarea.height,
     }
     local initial_coords = {
-        x = initial_geometry.x + ((directions[_x] + 1) * 0.5 * initial_geometry.width),
-        y = initial_geometry.y + ((directions[_y] + 1) * 0.5 * initial_geometry.height),
+        x = initial_geometry.x + ((cursor_icon_x + 1) * 0.5 * initial_geometry.width),
+        y = initial_geometry.y + ((cursor_icon_y + 1) * 0.5 * initial_geometry.height),
     }
 
     local coords_offset
@@ -214,6 +245,36 @@ local function resize(orientation, screen, tag, client, corner)
                 value = 1
             end
             size[_fy] = value
+        end
+
+        if padding_directions.x ~= 0 then
+            local value = padding_directions.x > 0
+                and (full_workarea.x + full_workarea.width - coords.x)
+                or (coords.x - full_workarea.x)
+            value = value - 32 -- Easier resetting
+            if value < 0 then
+                value = 0
+            end
+            if padding_directions.x > 0 then
+                layout_descriptor.padding.right = value
+            else
+                layout_descriptor.padding.left = value
+            end
+        end
+
+        if padding_directions.y ~= 0 then
+            local value = padding_directions.y > 0
+                and (full_workarea.y + full_workarea.height - coords.y)
+                or (coords.y - full_workarea.y)
+            value = value - 32 -- Easier resetting
+            if value < 0 then
+                value = 0
+            end
+            if padding_directions.y > 0 then
+                layout_descriptor.padding.bottom = value
+            else
+                layout_descriptor.padding.top = value
+            end
         end
 
         layout_descriptor.resize = {
@@ -356,12 +417,13 @@ local function arrange(orientation, parameters)
     local _x, _y, _width, _height, _, is_reversed = get_orientation_info(orientation)
 
     local clients = parameters.clients
-    local workarea = parameters.workarea
+    local layout_descriptor = tilted_layout_descriptor.update(tag, clients)
+
+    local workarea = apply_padding(parameters.workarea, layout_descriptor.padding)
     local useless_gap = parameters.useless_gap
+
     local width = workarea[_width]
     local height = workarea[_height]
-
-    local layout_descriptor = tilted_layout_descriptor.update(tag, clients)
 
     local layout_data = {
         descriptor = layout_descriptor,

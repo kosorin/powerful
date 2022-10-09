@@ -64,13 +64,25 @@ local function normalize_factors(descriptor)
     end
 end
 
+function layout_descriptor.new(tag)
+    return setmetatable({
+        tag = tag,
+        padding = {
+            left = 0,
+            right = 0,
+            top = 0,
+            bottom = 0,
+        },
+    }, { __index = layout_descriptor.object })
+end
+
 function layout_descriptor.update(tag, clients)
     local is_new = false
     local self = tag.tilted_layout_descriptor
 
     if not self then
         is_new = true
-        self = setmetatable({ tag = tag }, { __index = layout_descriptor.object })
+        self = layout_descriptor.new(tag)
     end
 
     local column = 1
