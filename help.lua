@@ -1,3 +1,6 @@
+local capi = {
+    client = client,
+}
 local awful = require("awful")
 local gtable = require("gears.table")
 local gmatcher = require("gears.matcher")
@@ -6,10 +9,6 @@ local tree = require("powerful.tree")
 local help_popup = require("powerful.help_popup")
 local beautiful = require("beautiful")
 local dpi = beautiful.xresources.apply_dpi
-
-local capi = {
-    client = client,
-}
 
 
 local mouse_label_icon = beautiful.help_mouse_label_icon or "🖱️"
