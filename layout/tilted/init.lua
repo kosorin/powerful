@@ -12,7 +12,7 @@ local alayout = require("awful.layout")
 local tilted_layout_descriptor = require("powerful.layout.tilted.layout_descriptor")
 
 
-local tilted = {}
+local tilted = { object = { is_tilted = true } }
 
 --- Cursors for each corner (3x3 matrix).
 -- @field powerful.layout.tilted.cursors
@@ -21,6 +21,10 @@ tilted.cursors = {
     { "left_side", "pirate", "right_side" },
     { "bottom_left_corner", "bottom_side", "bottom_right_corner" },
 }
+
+--- Resize padding.
+-- @field powerful.layout.tilted.resize_padding
+tilted.resize_padding = true
 
 --- Resize only adjacent clients.
 -- @field powerful.layout.tilted.resize_only_neighbors
@@ -76,28 +80,7 @@ local function inflate(geometry, size)
     }
 end
 
-local function get_orientation_info(orientation)
-    local is_reversed_x = orientation == "left"
-    local is_reversed_y = orientation == "top"
-    local is_reversed = is_reversed_x or is_reversed_y
-    local is_horizontal = orientation == "left" or orientation == "right"
-    local _x, _y, _width, _height
-    if is_horizontal then
-        _x = "x"
-        _y = "y"
-        _width = "width"
-        _height = "height"
-    else
-        _x = "y"
-        _y = "x"
-        _width = "height"
-        _height = "width"
-    end
-    local _fx, _fy = is_horizontal and _x or _y, is_horizontal and _y or _x
-    return _x, _y, _width, _height, is_horizontal, is_reversed, is_reversed_x, is_reversed_y, _fx, _fy
-end
-
-local function resize(orientation, screen, tag, client, corner)
+function tilted.object:resize(screen, tag, client, corner)
     if not screen or not tag or not client or not client.valid then
         return
     end
@@ -114,59 +97,39 @@ local function resize(orientation, screen, tag, client, corner)
         return
     end
 
-    local index = item_descriptor.index
-    local _x, _y, _width, _height, is_horizontal, _, is_reversed_x, is_reversed_y, _fx, _fy = get_orientation_info(orientation)
+    local column_display_index = self:get_column_display_index(column_descriptor.index, layout_descriptor.size)
+    local item_display_index = item_descriptor.index
+
+    local oi = self.orientation_info
 
     local directions = { x = 0, y = 0 }
-    if find(corner, is_reversed_x and "right" or "left", nil, true) then
-        directions[_x] = is_horizontal
-            and (column_descriptor.index > 1 and -1 or 0)
-            or (index > column_descriptor.from and -1 or 0)
-    elseif find(corner, is_reversed_x and "left" or "right", nil, true) then
-        directions[_x] = is_horizontal
-            and (column_descriptor.index < layout_descriptor.size and 1 or 0)
-            or (index < column_descriptor.to and 1 or 0)
+    local cursor_directions = { x = 0, y = 0 }
+    if find(corner, "left", nil, true) then
+        directions[oi.x] = oi.is_horizontal
+            and (column_display_index > 1 and -1 or 0)
+            or (item_display_index > 1 and -1 or 0)
+        cursor_directions.x = -1
+    elseif find(corner, "right", nil, true) then
+        directions[oi.x] = oi.is_horizontal
+            and (column_display_index < layout_descriptor.size and 1 or 0)
+            or (item_display_index < column_descriptor.size and 1 or 0)
+        cursor_directions.x = 1
     end
-    if find(corner, is_reversed_y and "bottom" or "top", nil, true) then
-        directions[_y] = is_horizontal
-            and (index > column_descriptor.from and -1 or 0)
-            or (column_descriptor.index > 1 and -1 or 0)
-    elseif find(corner, is_reversed_y and "top" or "bottom", nil, true) then
-        directions[_y] = is_horizontal
-            and (index < column_descriptor.to and 1 or 0)
-            or (column_descriptor.index < layout_descriptor.size and 1 or 0)
-    end
-
-    local original_directions = { x = directions.x, y = directions.y }
-
-    if is_reversed_x then
-        directions[_x] = directions[_x] * -1
-    end
-    if is_reversed_y then
-        directions[_y] = directions[_y] * -1
+    if find(corner, "top", nil, true) then
+        directions[oi.y] = oi.is_horizontal
+            and (item_display_index > 1 and -1 or 0)
+            or (column_display_index > 1 and -1 or 0)
+        cursor_directions.y = -1
+    elseif find(corner, "bottom", nil, true) then
+        directions[oi.y] = oi.is_horizontal
+            and (item_display_index < column_descriptor.size and 1 or 0)
+            or (column_display_index < layout_descriptor.size and 1 or 0)
+        cursor_directions.y = 1
     end
 
-    local padding_directions = { x = 0, y = 0 }
-    if directions[_x] == 0 then
-        if find(corner, "left", nil, true) then
-            padding_directions.x = -1
-        elseif find(corner, "right", nil, true) then
-            padding_directions.x = 1
-        end
-    end
-    if directions[_y] == 0 then
-        if find(corner, "top", nil, true) then
-            padding_directions.y = -1
-        elseif find(corner, "bottom", nil, true) then
-            padding_directions.y = 1
-        end
-    end
+    local cursor = tilted.cursors[cursor_directions.y + 2][cursor_directions.x + 2]
 
-    local cursor_icon_x = directions[_x] ~= 0 and directions[_x] or padding_directions.x
-    local cursor_icon_y = directions[_y] ~= 0 and directions[_y] or padding_directions.y
-    local cursor = tilted.cursors[cursor_icon_y + 2][cursor_icon_x + 2]
-
-    if cursor_icon_x == 0 and cursor_icon_y == 0 then
+    if cursor_directions.x == 0 and cursor_directions.y == 0 then
         capi.mousegrabber.run(function(coords) return any_button(coords.buttons) end, cursor)
         return
     end
@@ -179,12 +142,12 @@ local function resize(orientation, screen, tag, client, corner)
     initial_geometry = {
         x = initial_geometry.x,
         y = initial_geometry.y,
-        width = (is_horizontal and column_descriptor or item_descriptor).factor * workarea.width,
-        height = (is_horizontal and item_descriptor or column_descriptor).factor * workarea.height,
+        width = (oi.is_horizontal and column_descriptor or item_descriptor).factor * workarea.width,
+        height = (oi.is_horizontal and item_descriptor or column_descriptor).factor * workarea.height,
     }
     local initial_coords = {
-        x = initial_geometry.x + ((cursor_icon_x + 1) * 0.5 * initial_geometry.width),
-        y = initial_geometry.y + ((cursor_icon_y + 1) * 0.5 * initial_geometry.height),
+        x = initial_geometry.x + ((cursor_directions.x + 1) * 0.5 * initial_geometry.width),
+        y = initial_geometry.y + ((cursor_directions.y + 1) * 0.5 * initial_geometry.height),
     }
 
     local coords_offset
@@ -227,62 +190,62 @@ local function resize(orientation, screen, tag, client, corner)
 
         local size = {}
 
-        if directions[_fx] ~= 0 then
-            local value = directions[_fx] < 0
-                and (initial_geometry[_x] + initial_geometry[_width] - coords[_x])
-                or (coords[_x] - initial_geometry[_x])
+        if directions.x ~= 0 then
+            local value = directions.x < 0
+                and (initial_geometry[oi.x] + initial_geometry[oi.width] - coords[oi.x])
+                or (coords[oi.x] - initial_geometry[oi.x])
             if value < 1 then
                 value = 1
             end
-            size[_fx] = value
+            size.x = value
         end
-
-        if directions[_fy] ~= 0 then
-            local value = directions[_fy] < 0
-                and (initial_geometry[_y] + initial_geometry[_height] - coords[_y])
-                or (coords[_y] - initial_geometry[_y])
+        if directions.y ~= 0 then
+            local value = directions.y < 0
+                and (initial_geometry[oi.y] + initial_geometry[oi.height] - coords[oi.y])
+                or (coords[oi.y] - initial_geometry[oi.y])
             if value < 1 then
                 value = 1
             end
-            size[_fy] = value
+            size.y = value
         end
 
-        if padding_directions.x ~= 0 then
-            local value = padding_directions.x > 0
-                and (full_workarea.x + full_workarea.width - coords.x)
-                or (coords.x - full_workarea.x)
-            value = value - 32 -- Easier resetting
-            if value < 0 then
-                value = 0
+        if tilted.resize_padding then
+            if directions[oi.x] == 0 and cursor_directions.x ~= 0 then
+                local value = cursor_directions.x > 0
+                    and (full_workarea.x + full_workarea.width - coords.x)
+                    or (coords.x - full_workarea.x)
+                value = value - 32 -- Easier resetting
+                if value < 0 then
+                    value = 0
+                end
+                if cursor_directions.x > 0 then
+                    layout_descriptor.padding.right = value
+                else
+                    layout_descriptor.padding.left = value
+                end
             end
-            if padding_directions.x > 0 then
-                layout_descriptor.padding.right = value
-            else
-                layout_descriptor.padding.left = value
-            end
-        end
-
-        if padding_directions.y ~= 0 then
-            local value = padding_directions.y > 0
-                and (full_workarea.y + full_workarea.height - coords.y)
-                or (coords.y - full_workarea.y)
-            value = value - 32 -- Easier resetting
-            if value < 0 then
-                value = 0
-            end
-            if padding_directions.y > 0 then
-                layout_descriptor.padding.bottom = value
-            else
-                layout_descriptor.padding.top = value
+            if directions[oi.y] == 0 and cursor_directions.y ~= 0 then
+                local value = cursor_directions.y > 0
+                    and (full_workarea.y + full_workarea.height - coords.y)
+                    or (coords.y - full_workarea.y)
+                value = value - 32 -- Easier resetting
+                if value < 0 then
+                    value = 0
+                end
+                if cursor_directions.y > 0 then
+                    layout_descriptor.padding.bottom = value
+                else
+                    layout_descriptor.padding.top = value
+                end
             end
         end
 
         layout_descriptor.resize = {
             apply = false,
-            column = column_descriptor.index,
-            item = index - column_descriptor.from + 1,
+            column_display_index = column_display_index,
+            item_display_index = item_display_index,
             size = size,
-            directions = original_directions,
+            directions = directions,
         }
         alayout.arrange(screen)
         return true
@@ -404,7 +367,7 @@ local function resize_fit(items, start, direction, new_size, apply)
     end
 end
 
-local function arrange(orientation, parameters)
+function tilted.object:arrange(parameters)
     local tag = parameters.tag
     local screen = parameters.screen and capi.screen[parameters.screen]
     if not tag and screen then
@@ -414,48 +377,47 @@ local function arrange(orientation, parameters)
         return
     end
 
-    local _x, _y, _width, _height, _, is_reversed = get_orientation_info(orientation)
-
     local clients = parameters.clients
     local layout_descriptor = tilted_layout_descriptor.update(tag, clients)
 
     local workarea = apply_padding(parameters.workarea, layout_descriptor.padding)
     local useless_gap = parameters.useless_gap
 
-    local width = workarea[_width]
-    local height = workarea[_height]
+    local oi = self.orientation_info
+    local width = workarea[oi.width]
+    local height = workarea[oi.height]
 
     local layout_data = {
         descriptor = layout_descriptor,
     }
 
-    for column = 1, layout_descriptor.size do
-        column = is_reversed and (layout_descriptor.size - column + 1) or column
-        local column_descriptor = layout_descriptor[column]
-
+    for column_display_index = 1, layout_descriptor.size do
+        local column_index = self:get_column_index(column_display_index, layout_descriptor.size)
+        local column_descriptor = layout_descriptor[column_index]
         local column_data = {
             descriptor = column_descriptor,
             factor = column_descriptor.factor,
             size = column_descriptor.factor * width,
             min_size = 0,
         }
-        for item = 1, column_descriptor.size do
-            local index = column_descriptor.from + item - 1
-            local item_descriptor = column_descriptor[item]
-            local client = clients[index]
+
+        for item_display_index = 1, column_descriptor.size do
+            local item_index = item_display_index
+            local item_descriptor = column_descriptor[item_index]
+            local client = clients[item_descriptor.client_index]
 
             local size_hints = client.size_hints
             local decoration_size = get_decoration_size(client, useless_gap)
-            local min_width = decoration_size[_width]
-                + math.max(1, size_hints["min_" .. _width] or size_hints["base_" .. _width] or 0)
-            local min_height = decoration_size[_height]
-                + math.max(1, size_hints["min_" .. _height] or size_hints["base_" .. _height] or 0)
-            local max_width = decoration_size[_width]
-                + (size_hints["max_" .. _width] or infinity)
-            local max_height = decoration_size[_height]
-                + (size_hints["max_" .. _height] or infinity)
+            local min_width = decoration_size[oi.width]
+                + math.max(1, size_hints["min_" .. oi.width] or size_hints["base_" .. oi.width] or 0)
+            local min_height = decoration_size[oi.height]
+                + math.max(1, size_hints["min_" .. oi.height] or size_hints["base_" .. oi.height] or 0)
+            local max_width = decoration_size[oi.width]
+                + (size_hints["max_" .. oi.width] or infinity)
+            local max_height = decoration_size[oi.height]
+                + (size_hints["max_" .. oi.height] or infinity)
 
-            column_data[item] = {
+            column_data[item_display_index] = {
                 descriptor = item_descriptor,
                 factor = item_descriptor.factor,
                 size = item_descriptor.factor * height,
@@ -467,7 +429,7 @@ local function arrange(orientation, parameters)
             end
         end
 
-        layout_data[column] = column_data
+        layout_data[column_display_index] = column_data
     end
 
     fit(layout_data, width)
@@ -478,34 +440,37 @@ local function arrange(orientation, parameters)
     local resize = layout_descriptor.resize
     if resize then
         if resize.size.x and resize.directions.x ~= 0 then
-            resize_fit(layout_data, resize.column, resize.directions.x, resize.size.x, resize.apply)
+            resize_fit(layout_data, resize.column_display_index,
+                resize.directions.x, resize.size.x, resize.apply)
         end
         if resize.size.y and resize.directions.y ~= 0 then
-            resize_fit(layout_data[resize.column], resize.item, resize.directions.y, resize.size.y, resize.apply)
+            resize_fit(layout_data[resize.column_display_index], resize.item_display_index,
+                resize.directions.y, resize.size.y, resize.apply)
         end
         if resize.apply then
             layout_descriptor.resize = nil
         end
     end
 
-    local x = workarea[_x]
-    for column = 1, layout_descriptor.size do
-        column = is_reversed and (layout_descriptor.size - column + 1) or column
-        local column_descriptor = layout_descriptor[column]
-        local column_data = layout_data[column]
+    local x = workarea[oi.x]
+    for column_display_index = 1, layout_descriptor.size do
+        local column_index = self:get_column_index(column_display_index, layout_descriptor.size)
+        local column_descriptor = layout_descriptor[column_index]
+        local column_data = layout_data[column_display_index]
         local column_width = column_data.size
 
-        local y = workarea[_y]
-        for item = 1, column_descriptor.size do
-            local index = column_descriptor.from + item - 1
-            local item_data = column_data[item]
+        local y = workarea[oi.y]
+        for item_display_index = 1, column_descriptor.size do
+            local item_index = item_display_index
+            local item_descriptor = column_descriptor[item_index]
+            local item_data = column_data[item_display_index]
             local item_height = item_data.size
 
-            parameters.geometries[clients[index]] = {
-                [_width] = column_width,
-                [_height] = item_height,
-                [_x] = x,
-                [_y] = y,
+            parameters.geometries[clients[item_descriptor.client_index]] = {
+                [oi.width] = column_width,
+                [oi.height] = item_height,
+                [oi.x] = x,
+                [oi.y] = y,
             }
 
             y = y + item_height
@@ -514,78 +479,61 @@ local function arrange(orientation, parameters)
     end
 end
 
-function tilted.skip_gap(tiled_client_count, tag)
+function tilted.object:get_column_index(column_display_index, size)
+    return self.orientation_info.is_reversed
+        and (size - column_display_index + 1)
+        or column_display_index
+end
+
+function tilted.object:get_column_display_index(column_index, size)
+    return self.orientation_info.is_reversed
+        and (size - column_index + 1)
+        or column_index
+end
+
+function tilted.object.skip_gap(tiled_client_count, tag)
     return tiled_client_count == 1 and tag.master_fill_policy == "expand"
 end
 
+function tilted.object.new(orientation)
+    local self = {
+        name = "tilted_" .. orientation,
+    }
+
+    local oi = {}
+    oi.orientation = orientation
+    oi.is_reversed_x = orientation == "left"
+    oi.is_reversed_y = orientation == "top"
+    oi.is_horizontal = orientation == "left" or orientation == "right"
+    oi.is_reversed = oi.is_reversed_x or oi.is_reversed_y
+    oi.x = oi.is_horizontal and "x" or "y"
+    oi.y = oi.is_horizontal and "y" or "x"
+    oi.width = oi.is_horizontal and "width" or "height"
+    oi.height = oi.is_horizontal and "height" or "width"
+    self.orientation_info = oi
+
+    function self.arrange(parameters)
+        tilted.object.arrange(self, parameters)
+    end
+
+    return setmetatable(self, { __index = tilted.object })
+end
+
 --- The extended tile layout, on the right.
--- @param screen The screen number to tile.
--- @usebeautiful beautiful.layout_tilted
-tilted.right = {}
-tilted.right.is_tilted = true
-tilted.right.name = "tilted"
-tilted.right.skip_gap = tilted.skip_gap
-
-function tilted.right.arrange(...)
-    return arrange("right", ...)
-end
-
-function tilted.right.resize(...)
-    return resize("right", ...)
-end
+-- @usebeautiful beautiful.layout_tilted_right
+tilted.right = tilted.object.new("right")
 
 --- The extended tile layout, on the left.
--- @param screen The screen number to tile.
--- @usebeautiful beautiful.layout_tiltedleft
-tilted.left = {}
-tilted.left.is_tilted = true
-tilted.left.name = "tiltedleft"
-tilted.left.skip_gap = tilted.skip_gap
-
-function tilted.left.arrange(...)
-    return arrange("left", ...)
-end
-
-function tilted.left.resize(...)
-    return resize("left", ...)
-end
+-- @usebeautiful beautiful.layout_tilted_left
+tilted.left = tilted.object.new("left")
 
 --- The extended tile layout, on the bottom.
--- @param screen The screen number to tile.
--- @usebeautiful beautiful.layout_tiltedbottom
-tilted.bottom = {}
-tilted.bottom.is_tilted = true
-tilted.bottom.name = "tiltedbottom"
-tilted.bottom.skip_gap = tilted.skip_gap
-
-function tilted.bottom.arrange(...)
-    return arrange("bottom", ...)
-end
-
-function tilted.bottom.resize(...)
-    return resize("bottom", ...)
-end
+-- @usebeautiful beautiful.layout_tilted_bottom
+tilted.bottom = tilted.object.new("bottom")
 
 --- The extended tile layout, on the top.
--- @param screen The screen number to tile.
--- @usebeautiful beautiful.layout_tiltedtop
-tilted.top = {}
-tilted.top.is_tilted = true
-tilted.top.name = "tiltedtop"
-tilted.top.skip_gap = tilted.skip_gap
-
-function tilted.top.arrange(...)
-    return arrange("top", ...)
-end
-
-function tilted.top.resize(...)
-    return resize("top", ...)
-end
-
-tilted.is_tilted = true
-tilted.name = tilted.right.name
-tilted.arrange = tilted.right.arrange
-tilted.resize = tilted.right.resize
+-- @usebeautiful beautiful.layout_tilted_top
+tilted.top = tilted.object.new("top")
 
 amouse.resize.add_enter_callback(function(client, args)
     if client.floating then
@@ -595,13 +543,9 @@ amouse.resize.add_enter_callback(function(client, args)
     local tag = screen.selected_tag
     local layout = tag and tag.layout or nil
     if layout and layout.is_tilted then
-        if layout.resize then
-            layout.resize(screen, tag, client, args.corner)
-        end
+        layout:resize(screen, tag, client, args.corner)
         return false
     end
 end, "mouse.resize")
-
-tilted_layout_descriptor.tilted = tilted
 
 return tilted

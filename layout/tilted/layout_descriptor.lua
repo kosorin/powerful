@@ -13,21 +13,21 @@ function layout_descriptor.object:find_client(client, clients)
         return
     end
 
-    local index = nil
+    local client_index
 
     for i = 1, #clients do
         if clients[i] == client then
-            index = i
+            client_index = i
             break
         end
     end
 
-    if index then
+    if client_index then
         for i = 1, self.size do
             local cd = self[i]
-            if cd.from <= index and index <= cd.to then
-                local id = cd[index - cd.from + 1]
-                if id.index == index and id.window == client.window then
+            if cd.from <= client_index and client_index <= cd.to then
+                local id = cd[client_index - cd.from + 1]
+                if id.client_index == client_index and id.window_id == client.window then
                     return cd, id
                 end
                 break
@@ -85,34 +85,33 @@ function layout_descriptor.update(tag, clients)
         self = layout_descriptor.new(tag)
     end
 
-    local column = 1
-    local index = 1
+    local column_index = 1
+    local client_index = 1
 
     local function update_next_column_descriptor(size)
-        local column_descriptor = self[column]
+        local column_descriptor = self[column_index]
         if not column_descriptor then
-            column_descriptor = {}
-            self[column] = column_descriptor
+            column_descriptor = { index = column_index }
+            self[column_index] = column_descriptor
         end
-        column_descriptor.index = column
-        column_descriptor.from = index
-        column_descriptor.to = index + size - 1
+        column_descriptor.from = client_index
+        column_descriptor.to = client_index + size - 1
         column_descriptor.last_size = column_descriptor.size
         column_descriptor.size = size
 
-        for i = 1, size do
-            local item_descriptor = column_descriptor[i]
+        for item_index = 1, size do
+            local item_descriptor = column_descriptor[item_index]
             if not item_descriptor then
-                item_descriptor = {}
-                column_descriptor[i] = item_descriptor
+                item_descriptor = { index = item_index }
+                column_descriptor[item_index] = item_descriptor
             end
-            item_descriptor.index = index
-            item_descriptor.window = clients[index].window
+            item_descriptor.client_index = client_index
+            item_descriptor.window_id = clients[client_index].window
 
-            index = index + 1
+            client_index = client_index + 1
         end
 
-        column = column + 1
+        column_index = column_index + 1
     end
 
     local total_count = #clients
@@ -127,17 +126,17 @@ function layout_descriptor.update(tag, clients)
     if secondary_count > 0 and secondary_column_count > 0 then
         local column_size = math.floor(secondary_count / secondary_column_count)
         local extra_count = math.fmod(secondary_count, secondary_column_count)
-        local last_simple_column = column - 1 + (secondary_column_count - extra_count)
+        local last_simple_column = column_index - 1 + (secondary_column_count - extra_count)
         repeat
             local size = column_size
-            if column > last_simple_column then
+            if column_index > last_simple_column then
                 size = size + 1
             end
             update_next_column_descriptor(size)
-        until index > total_count
+        until client_index > total_count
     end
 
-    local size = column - 1
+    local size = column_index - 1
     self.from = size > 0 and 1 or 0
     self.to = size
     self.last_size = self.size
