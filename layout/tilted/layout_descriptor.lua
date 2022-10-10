@@ -38,28 +38,29 @@ end
 
 local function normalize_factors(descriptor)
     local size = descriptor.size
-    local last_size = descriptor.last_size or 1
     if size < 1 then
         return
     end
+
+    local last_size = descriptor.last_size or 1
     if last_size < 1 then
         last_size = 1
     end
 
-    local total = 0
+    local total_factor = 0
 
     for i = 1, size do
         local item_descriptor = descriptor[i]
         if not item_descriptor.factor then
             item_descriptor.factor = 1 / last_size
         end
-        total = total + item_descriptor.factor
+        total_factor = total_factor + item_descriptor.factor
     end
 
-    if total > 0 then
+    if total_factor > 0 then
         for i = 1, #descriptor do
             local item_descriptor = descriptor[i]
-            item_descriptor.factor = item_descriptor.factor / total
+            item_descriptor.factor = item_descriptor.factor / total_factor
         end
     end
 end
