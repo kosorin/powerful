@@ -9,10 +9,13 @@ local find = string.find
 local aclient = require("awful.client")
 local amouse = require("awful.mouse")
 local alayout = require("awful.layout")
-local tilted_layout_descriptor = require("powerful.layout.tilted.layout_descriptor")
 
 
-local tilted = { object = { is_tilted = true } }
+local tilted = {
+    object = { is_tilted = true },
+    layout_descriptor = require("powerful.layout.tilted.layout_descriptor"),
+    column_strategy = require("powerful.layout.tilted.column_strategy"),
+}
 
 --- Cursors for each corner (3x3 matrix).
 -- @field powerful.layout.tilted.cursors
@@ -97,7 +100,8 @@ function tilted.object:resize(screen, tag, client, corner)
         return
     end
 
-    local column_display_index = self:get_column_display_index(column_descriptor.index, layout_descriptor.size)
+    local column_display_index = self.column_strategy.get_column_display_index(
+        column_descriptor.index, layout_descriptor.size, self.is_reversed)
     local item_display_index = item_descriptor.index
 
     local oi = self.orientation_info
@@ -105,23 +109,23 @@ function tilted.object:resize(screen, tag, client, corner)
     local directions = { x = 0, y = 0 }
     local cursor_directions = { x = 0, y = 0 }
     if find(corner, "left", nil, true) then
-        directions[oi.x] = oi.is_horizontal
+        directions[oi.x] = self.is_horizontal
             and (column_display_index > 1 and -1 or 0)
             or (item_display_index > 1 and -1 or 0)
         cursor_directions.x = -1
     elseif find(corner, "right", nil, true) then
-        directions[oi.x] = oi.is_horizontal
+        directions[oi.x] = self.is_horizontal
             and (column_display_index < layout_descriptor.size and 1 or 0)
             or (item_display_index < column_descriptor.size and 1 or 0)
         cursor_directions.x = 1
     end
     if find(corner, "top", nil, true) then
-        directions[oi.y] = oi.is_horizontal
+        directions[oi.y] = self.is_horizontal
             and (item_display_index > 1 and -1 or 0)
             or (column_display_index > 1 and -1 or 0)
         cursor_directions.y = -1
     elseif find(corner, "bottom", nil, true) then
-        directions[oi.y] = oi.is_horizontal
+        directions[oi.y] = self.is_horizontal
             and (item_display_index < column_descriptor.size and 1 or 0)
             or (column_display_index < layout_descriptor.size and 1 or 0)
         cursor_directions.y = 1
@@ -142,8 +146,8 @@ function tilted.object:resize(screen, tag, client, corner)
     initial_geometry = {
         x = initial_geometry.x,
         y = initial_geometry.y,
-        width = (oi.is_horizontal and column_descriptor or item_descriptor).factor * workarea.width,
-        height = (oi.is_horizontal and item_descriptor or column_descriptor).factor * workarea.height,
+        width = (self.is_horizontal and column_descriptor or item_descriptor).factor * workarea.width,
+        height = (self.is_horizontal and item_descriptor or column_descriptor).factor * workarea.height,
     }
     local initial_coords = {
         x = initial_geometry.x + ((cursor_directions.x + 1) * 0.5 * initial_geometry.width),
@@ -378,7 +382,7 @@ function tilted.object:arrange(parameters)
     end
 
     local clients = parameters.clients
-    local layout_descriptor = tilted_layout_descriptor.update(tag, clients)
+    local layout_descriptor = tilted.layout_descriptor.update(tag, clients)
 
     local workarea = apply_padding(parameters.workarea, layout_descriptor.padding)
     local useless_gap = parameters.useless_gap
@@ -392,7 +396,8 @@ function tilted.object:arrange(parameters)
     }
 
     for column_display_index = 1, layout_descriptor.size do
-        local column_index = self:get_column_index(column_display_index, layout_descriptor.size)
+        local column_index = self.column_strategy.get_column_index(
+            column_display_index, layout_descriptor.size, self.is_reversed)
         local column_descriptor = layout_descriptor[column_index]
         local column_data = {
             descriptor = column_descriptor,
@@ -454,7 +459,8 @@ function tilted.object:arrange(parameters)
 
     local x = workarea[oi.x]
     for column_display_index = 1, layout_descriptor.size do
-        local column_index = self:get_column_index(column_display_index, layout_descriptor.size)
+        local column_index = self.column_strategy.get_column_index(
+            column_display_index, layout_descriptor.size, self.is_reversed)
         local column_descriptor = layout_descriptor[column_index]
         local column_data = layout_data[column_display_index]
         local column_width = column_data.size
@@ -479,37 +485,33 @@ function tilted.object:arrange(parameters)
     end
 end
 
-function tilted.object:get_column_index(column_display_index, size)
-    return self.orientation_info.is_reversed
-        and (size - column_display_index + 1)
-        or column_display_index
-end
-
-function tilted.object:get_column_display_index(column_index, size)
-    return self.orientation_info.is_reversed
-        and (size - column_index + 1)
-        or column_index
-end
-
 function tilted.object.skip_gap(tiled_client_count, tag)
     return tiled_client_count == 1 and tag.master_fill_policy == "expand"
 end
 
-function tilted.object.new(orientation)
+function tilted.new(name, args)
+    args = args or {}
+
+    local column_strategy = args.column_strategy
+    if type(column_strategy) == "string" then
+        column_strategy = tilted.column_strategy[column_strategy]
+    end
+    if not column_strategy then
+        column_strategy = tilted.column_strategy.linear
+    end
+
     local self = {
-        name = "tilted_" .. orientation,
+        name = name,
+        is_horizontal = args.is_horizontal or args.is_horizontal == nil,
+        is_reversed = args.is_reversed,
+        column_strategy = column_strategy,
     }
 
     local oi = {}
-    oi.orientation = orientation
-    oi.is_reversed_x = orientation == "left"
-    oi.is_reversed_y = orientation == "top"
-    oi.is_horizontal = orientation == "left" or orientation == "right"
-    oi.is_reversed = oi.is_reversed_x or oi.is_reversed_y
-    oi.x = oi.is_horizontal and "x" or "y"
-    oi.y = oi.is_horizontal and "y" or "x"
-    oi.width = oi.is_horizontal and "width" or "height"
-    oi.height = oi.is_horizontal and "height" or "width"
+    oi.x = self.is_horizontal and "x" or "y"
+    oi.y = self.is_horizontal and "y" or "x"
+    oi.width = self.is_horizontal and "width" or "height"
+    oi.height = self.is_horizontal and "height" or "width"
     self.orientation_info = oi
 
     function self.arrange(parameters)
@@ -521,19 +523,23 @@ end
 
 --- The extended tile layout, on the right.
 -- @usebeautiful beautiful.layout_tilted_right
-tilted.right = tilted.object.new("right")
+tilted.right = tilted.new("tilted_right")
 
 --- The extended tile layout, on the left.
 -- @usebeautiful beautiful.layout_tilted_left
-tilted.left = tilted.object.new("left")
+tilted.left = tilted.new("tilted_left", { is_reversed = true })
 
 --- The extended tile layout, on the bottom.
 -- @usebeautiful beautiful.layout_tilted_bottom
-tilted.bottom = tilted.object.new("bottom")
+tilted.bottom = tilted.new("tilted_bottom", { is_horizontal = false })
 
 --- The extended tile layout, on the top.
 -- @usebeautiful beautiful.layout_tilted_top
-tilted.top = tilted.object.new("top")
+tilted.top = tilted.new("tilted_top", { is_horizontal = false, is_reversed = true })
+
+--- The extended tile layout, on the center.
+-- @usebeautiful beautiful.layout_tilted_center
+tilted.center = tilted.new("tilted_center", { column_strategy = "center" })
 
 amouse.resize.add_enter_callback(function(client, args)
     if client.floating then
