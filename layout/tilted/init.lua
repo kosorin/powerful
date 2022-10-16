@@ -436,17 +436,25 @@ function tilted.object:arrange(parameters)
             local item_index = item_display_index
             local item_descriptor = column_descriptor[item_index]
             local client = clients[item_descriptor.client_index]
-
-            local size_hints = client.size_hints
             local decoration_size = get_decoration_size(client, useless_gap)
-            local min_width = decoration_size[oi.width]
-                + math.max(1, size_hints["min_" .. oi.width] or size_hints["base_" .. oi.width] or 0)
-            local min_height = decoration_size[oi.height]
-                + math.max(1, size_hints["min_" .. oi.height] or size_hints["base_" .. oi.height] or 0)
-            local max_width = decoration_size[oi.width]
-                + (size_hints["max_" .. oi.width] or infinity)
-            local max_height = decoration_size[oi.height]
-                + (size_hints["max_" .. oi.height] or infinity)
+
+            local min_width, min_height, max_width, max_height
+            if client.size_hints_honor then
+                local size_hints = client.size_hints
+                min_width = decoration_size[oi.width]
+                    + math.max(1, size_hints["min_" .. oi.width] or size_hints["base_" .. oi.width] or 0)
+                min_height = decoration_size[oi.height]
+                    + math.max(1, size_hints["min_" .. oi.height] or size_hints["base_" .. oi.height] or 0)
+                max_width = decoration_size[oi.width]
+                    + (size_hints["max_" .. oi.width] or infinity)
+                max_height = decoration_size[oi.height]
+                    + (size_hints["max_" .. oi.height] or infinity)
+            else
+                min_width = decoration_size[oi.width] + 1
+                min_height = decoration_size[oi.height] + 1
+                max_width = infinity
+                max_height = infinity
+            end
 
             column_data[item_display_index] = {
                 descriptor = item_descriptor,
