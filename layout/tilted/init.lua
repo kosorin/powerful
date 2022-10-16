@@ -256,23 +256,34 @@ function tilted.object:resize(screen, tag, client, corner)
     end, cursor)
 end
 
-local function fit(items, total_size)
+local min_fit_context = {
+    must_resize = function(item) return item.size < item.min_size end,
+    get_bounding_size = function(item) return item.min_size end,
+    get_default_factor = function(item) return item.factor end,
+}
+local max_fit_context = {
+    must_resize = function(item) return item.size > item.max_size end,
+    get_bounding_size = function(item) return item.max_size end,
+    get_default_factor = function(item, total_size) return item.size / total_size end,
+}
+local function fit_core(context, items, total_size)
+    assert(total_size > 0)
     local count = #items
-    local new_adjusted
+    local any_adjusted
     local adjusted = {}
     local factors = {}
     local available_size = total_size
     repeat
-        new_adjusted = false
+        any_adjusted = false
         local total_factor = 0
         for i = 1, count do
             local item = items[i]
             if not adjusted[i] then
-                if item.size < item.min_size then
-                    available_size = available_size - item.min_size
+                if context.must_resize(item) then
+                    available_size = available_size - context.get_bounding_size(item)
                 else
                     if not factors[i] then
-                        factors[i] = item.factor
+                        factors[i] = context.get_default_factor(item, total_size)
                     end
                     total_factor = total_factor + factors[i]
                 end
@@ -281,20 +292,22 @@ local function fit(items, total_size)
         for i = 1, count do
             local item = items[i]
             if not adjusted[i] then
-                if item.size < item.min_size then
-                    item.size = item.min_size
+                if context.must_resize(item) then
+                    item.size = context.get_bounding_size(item)
                     adjusted[i] = true
-                    new_adjusted = true
+                    any_adjusted = true
                 else
-                    factors[i] = factors[i] / total_factor
+                    factors[i] = total_factor > 0 and (factors[i] / total_factor) or 0
                     item.size = available_size * factors[i]
                 end
             end
         end
-        if #adjusted >= count then
-            break
-        end
-    until not (new_adjusted and #adjusted < count)
+    until not (any_adjusted and #adjusted < count)
+end
+
+local function fit(items, total_size)
+    fit_core(min_fit_context, items, total_size)
+    fit_core(max_fit_context, items, total_size)
 end
 
 local function resize_fit(items, start, direction, new_size, apply)
@@ -309,33 +322,43 @@ local function resize_fit(items, start, direction, new_size, apply)
     if resize_item.size == new_size then
         return
     end
-
     local min_size = resize_item.min_size
     if new_size < min_size then
         new_size = min_size
+    end
+    local max_size = resize_item.max_size
+    if new_size > max_size then
+        new_size = max_size
     end
 
     local full_factor = resize_item.factor
     local full_size = resize_item.size
     local total_size = 0
     local total_min_size = 0
+    local total_max_size = 0
     local new_items = {}
-
     for i = start + direction, stop, direction do
         local item = items[i]
         full_factor = full_factor + item.factor
         full_size = full_size + item.size
         total_size = total_size + item.size
         total_min_size = total_min_size + item.min_size
+        total_max_size = total_max_size + item.max_size
         new_items[#new_items + 1] = {
-            old_item = item,
+            original_item = item,
             size = item.size,
             min_size = item.min_size,
+            max_size = item.max_size,
         }
     end
+    assert(full_size > 0)
+    assert(total_size > 0)
 
     if new_size > full_size - total_min_size then
         new_size = full_size - total_min_size
+    end
+    if new_size < full_size - total_max_size then
+        new_size = full_size - total_max_size
     end
 
     local new_total_size = full_size - new_size
@@ -352,21 +375,21 @@ local function resize_fit(items, start, direction, new_size, apply)
     end
     for i = 1, #new_items do
         local new_item = new_items[i]
-        new_item.factor = new_item.factor / new_total_factor
+        new_item.factor = new_total_factor > 0 and (new_item.factor / new_total_factor) or 0
     end
 
     fit(new_items, new_total_size)
 
     new_items[0] = {
-        old_item = resize_item,
+        original_item = resize_item,
         size = new_size,
     }
     for i = 0, #new_items do
         local new_item = new_items[i]
-        new_item.old_item.factor = full_factor * (new_item.size / full_size)
-        new_item.old_item.size = new_item.size
+        new_item.original_item.factor = full_factor * (new_item.size / full_size)
+        new_item.original_item.size = new_item.size
         if apply then
-            new_item.old_item.descriptor.factor = new_item.old_item.factor
+            new_item.original_item.descriptor.factor = new_item.original_item.factor
         end
     end
 end
@@ -395,6 +418,8 @@ function tilted.object:arrange(parameters)
         descriptor = layout_descriptor,
     }
 
+    local max_size_behavior = false
+
     for column_display_index = 1, layout_descriptor.size do
         local column_index = self.column_strategy.get_column_index(
             column_display_index, layout_descriptor.size, self.is_reversed)
@@ -404,6 +429,7 @@ function tilted.object:arrange(parameters)
             factor = column_descriptor.factor,
             size = column_descriptor.factor * width,
             min_size = 0,
+            max_size = max_size_behavior and infinity or 0,
         }
 
         for item_display_index = 1, column_descriptor.size do
@@ -427,10 +453,14 @@ function tilted.object:arrange(parameters)
                 factor = item_descriptor.factor,
                 size = item_descriptor.factor * height,
                 min_size = min_height,
+                max_size = max_height,
             }
 
             if column_data.min_size < min_width then
                 column_data.min_size = min_width
+            end
+            if column_data.max_size < max_width then
+                column_data.max_size = max_width
             end
         end
 
