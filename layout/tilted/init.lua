@@ -27,7 +27,7 @@ tilted.cursors = {
 
 --- Resize padding.
 -- @field powerful.layout.tilted.resize_padding
-tilted.resize_padding = true
+tilted.resize_padding = false
 
 --- Resize only adjacent clients.
 -- @field powerful.layout.tilted.resize_only_neighbors
