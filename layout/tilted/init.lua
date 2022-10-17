@@ -311,7 +311,9 @@ end
 
 local function fit(items, total_size)
     fit_core(min_fit_context, items, total_size)
-    fit_core(max_fit_context, items, total_size)
+    if items.any_max_size then
+        fit_core(max_fit_context, items, total_size)
+    end
 end
 
 local function resize_fit(items, start, direction, new_size, apply)
@@ -326,6 +328,7 @@ local function resize_fit(items, start, direction, new_size, apply)
     if resize_item.size == new_size then
         return
     end
+
     local min_size = resize_item.min_size
     if new_size < min_size then
         new_size = min_size
@@ -354,6 +357,9 @@ local function resize_fit(items, start, direction, new_size, apply)
             min_size = item.min_size,
             max_size = item.max_size,
         }
+        if item.max_size < infinity then
+            new_items.any_max_size = true
+        end
     end
     assert(full_size > 0)
     assert(total_size > 0)
@@ -460,13 +466,18 @@ function tilted.object:arrange(parameters)
                 max_height = infinity
             end
 
-            column_data[item_display_index] = {
+            local item_data = {
                 descriptor = item_descriptor,
                 factor = item_descriptor.factor,
                 size = item_descriptor.factor * height,
                 min_size = min_height,
                 max_size = max_height,
             }
+
+            if item_data.max_size < infinity then
+                column_data.any_max_size = true
+            end
+            column_data[item_display_index] = item_data
 
             if column_data.min_size < min_width then
                 column_data.min_size = min_width
@@ -476,6 +487,9 @@ function tilted.object:arrange(parameters)
             end
         end
 
+        if column_data.max_size < infinity then
+            layout_data.any_max_size = true
+        end
         layout_data[column_display_index] = column_data
     end
 
