@@ -109,26 +109,30 @@ function tilted.object:resize(screen, tag, client, corner)
     local directions = { x = 0, y = 0 }
     local cursor_directions = { x = 0, y = 0 }
     if find(corner, "left", nil, true) then
+        local direction = -1
         directions[oi.x] = self.is_horizontal
-            and (column_display_index > 1 and -1 or 0)
-            or (item_display_index > 1 and -1 or 0)
-        cursor_directions.x = -1
+            and (column_display_index > 1 and direction or 0)
+            or (item_display_index > 1 and direction or 0)
+        cursor_directions.x = tilted.resize_padding and direction or directions[oi.x]
     elseif find(corner, "right", nil, true) then
+        local direction = 1
         directions[oi.x] = self.is_horizontal
-            and (column_display_index < layout_descriptor.size and 1 or 0)
-            or (item_display_index < column_descriptor.size and 1 or 0)
-        cursor_directions.x = 1
+            and (column_display_index < layout_descriptor.size and direction or 0)
+            or (item_display_index < column_descriptor.size and direction or 0)
+        cursor_directions.x = tilted.resize_padding and direction or directions[oi.x]
     end
     if find(corner, "top", nil, true) then
+        local direction = -1
         directions[oi.y] = self.is_horizontal
-            and (item_display_index > 1 and -1 or 0)
-            or (column_display_index > 1 and -1 or 0)
-        cursor_directions.y = -1
+            and (item_display_index > 1 and direction or 0)
+            or (column_display_index > 1 and direction or 0)
+        cursor_directions.y = tilted.resize_padding and direction or directions[oi.y]
     elseif find(corner, "bottom", nil, true) then
+        local direction = 1
         directions[oi.y] = self.is_horizontal
-            and (item_display_index < column_descriptor.size and 1 or 0)
-            or (column_display_index < layout_descriptor.size and 1 or 0)
-        cursor_directions.y = 1
+            and (item_display_index < column_descriptor.size and direction or 0)
+            or (column_display_index < layout_descriptor.size and direction or 0)
+        cursor_directions.y = tilted.resize_padding and direction or directions[oi.y]
     end
 
     local cursor = tilted.cursors[cursor_directions.y + 2][cursor_directions.x + 2]
