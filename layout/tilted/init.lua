@@ -422,7 +422,7 @@ function tilted.object:arrange(parameters)
         descriptor = layout_descriptor,
     }
 
-    local max_size_behavior = false
+    local max_size_behavior = false -- TODO infinity or zeso
 
     for column_display_index = 1, layout_descriptor.size do
         local column_index = self.column_strategy.get_column_index(
