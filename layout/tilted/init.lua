@@ -25,9 +25,10 @@ tilted.cursors = {
     { "bottom_left_corner", "bottom_side", "bottom_right_corner" },
 }
 
---- Resize padding.
--- @field powerful.layout.tilted.resize_padding
-tilted.resize_padding = false
+local empty_padding = { left = 0, right = 0, top = 0, bottom = 0 }
+
+-- @field powerful.layout.tilted.mirror_padding
+tilted.mirror_padding = true
 
 --- Resize only adjacent clients.
 -- @field powerful.layout.tilted.resize_only_neighbors
@@ -113,26 +114,34 @@ function tilted.object:resize(screen, tag, client, corner)
         directions[oi.x] = self.is_horizontal
             and (column_display_index > 1 and direction or 0)
             or (item_display_index > 1 and direction or 0)
-        cursor_directions.x = tilted.resize_padding and direction or directions[oi.x]
+        cursor_directions.x = layout_descriptor.allow_padding
+            and direction
+            or directions[oi.x]
     elseif find(corner, "right", nil, true) then
         local direction = 1
         directions[oi.x] = self.is_horizontal
             and (column_display_index < layout_descriptor.size and direction or 0)
             or (item_display_index < column_descriptor.size and direction or 0)
-        cursor_directions.x = tilted.resize_padding and direction or directions[oi.x]
+        cursor_directions.x = layout_descriptor.allow_padding
+            and direction
+            or directions[oi.x]
     end
     if find(corner, "top", nil, true) then
         local direction = -1
         directions[oi.y] = self.is_horizontal
             and (item_display_index > 1 and direction or 0)
             or (column_display_index > 1 and direction or 0)
-        cursor_directions.y = tilted.resize_padding and direction or directions[oi.y]
+        cursor_directions.y = layout_descriptor.allow_padding
+            and direction
+            or directions[oi.y]
     elseif find(corner, "bottom", nil, true) then
         local direction = 1
         directions[oi.y] = self.is_horizontal
             and (item_display_index < column_descriptor.size and direction or 0)
             or (column_display_index < layout_descriptor.size and direction or 0)
-        cursor_directions.y = tilted.resize_padding and direction or directions[oi.y]
+        cursor_directions.y = layout_descriptor.allow_padding
+            and direction
+            or directions[oi.y]
     end
 
     local cursor = tilted.cursors[cursor_directions.y + 2][cursor_directions.x + 2]
@@ -142,8 +151,9 @@ function tilted.object:resize(screen, tag, client, corner)
         return
     end
 
+    local padding = layout_descriptor.allow_padding and layout_descriptor.padding[self] or empty_padding
     local full_workarea = parameters.workarea
-    local workarea = apply_padding(full_workarea, layout_descriptor.padding)
+    local workarea = apply_padding(full_workarea, padding)
     local useless_gap = parameters.useless_gap
 
     local initial_geometry = inflate(client:geometry(), client.border_width + useless_gap)
@@ -217,7 +227,8 @@ function tilted.object:resize(screen, tag, client, corner)
             size.y = value
         end
 
-        if tilted.resize_padding then
+        if layout_descriptor.allow_padding then
+            local padding = layout_descriptor.padding[self]
             if directions[oi.x] == 0 and cursor_directions.x ~= 0 then
                 local value = cursor_directions.x > 0
                     and (full_workarea.x + full_workarea.width - coords.x)
@@ -226,10 +237,15 @@ function tilted.object:resize(screen, tag, client, corner)
                 if value < 0 then
                     value = 0
                 end
-                if cursor_directions.x > 0 then
-                    layout_descriptor.padding.right = value
+                if tilted.mirror_padding then
+                    padding.right = value
+                    padding.left = value
                 else
-                    layout_descriptor.padding.left = value
+                    if cursor_directions.x > 0 then
+                        padding.right = value
+                    else
+                        padding.left = value
+                    end
                 end
             end
             if directions[oi.y] == 0 and cursor_directions.y ~= 0 then
@@ -240,10 +256,15 @@ function tilted.object:resize(screen, tag, client, corner)
                 if value < 0 then
                     value = 0
                 end
-                if cursor_directions.y > 0 then
-                    layout_descriptor.padding.bottom = value
+                if tilted.mirror_padding then
+                    padding.bottom = value
+                    padding.top = value
                 else
-                    layout_descriptor.padding.top = value
+                    if cursor_directions.y > 0 then
+                        padding.bottom = value
+                    else
+                        padding.top = value
+                    end
                 end
             end
         end
@@ -417,10 +438,23 @@ function tilted.object:arrange(parameters)
     local clients = parameters.clients
     local layout_descriptor = tilted.layout_descriptor.update(tag, clients)
 
-    local workarea = apply_padding(parameters.workarea, layout_descriptor.padding)
+    local oi = self.orientation_info
+    local full_workarea = parameters.workarea
+
+    if layout_descriptor.allow_padding and not layout_descriptor.padding[self] then
+        local factor = (1 - (tag.master_width_factor or 0.5)) / 2
+        layout_descriptor.padding[self] = {
+            [oi.left] = full_workarea[oi.width] * factor,
+            [oi.right] = full_workarea[oi.width] * factor,
+            [oi.top] = 0,
+            [oi.bottom] = 0,
+        }
+    end
+    local padding = layout_descriptor.allow_padding and layout_descriptor.padding[self] or empty_padding
+
+    local workarea = apply_padding(full_workarea, padding)
     local useless_gap = parameters.useless_gap
 
-    local oi = self.orientation_info
     local width = workarea[oi.width]
     local height = workarea[oi.height]
 
@@ -493,9 +527,9 @@ function tilted.object:arrange(parameters)
         layout_data[column_display_index] = column_data
     end
 
-    fit(layout_data, width)
+    fit(layout_data, math.max(1, width))
     for i = 1, #layout_data do
-        fit(layout_data[i], height)
+        fit(layout_data[i], math.max(1, height))
     end
 
     local resize = layout_descriptor.resize
@@ -568,6 +602,10 @@ function tilted.new(name, args)
     oi.y = self.is_horizontal and "y" or "x"
     oi.width = self.is_horizontal and "width" or "height"
     oi.height = self.is_horizontal and "height" or "width"
+    oi.left = self.is_horizontal and "left" or "top"
+    oi.right = self.is_horizontal and "right" or "bottom"
+    oi.top = self.is_horizontal and "top" or "left"
+    oi.bottom = self.is_horizontal and "bottom" or "right"
     self.orientation_info = oi
 
     function self.arrange(parameters)

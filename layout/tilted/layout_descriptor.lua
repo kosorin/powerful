@@ -68,12 +68,7 @@ end
 function layout_descriptor.new(tag)
     return setmetatable({
         tag = tag,
-        padding = {
-            left = 0,
-            right = 0,
-            top = 0,
-            bottom = 0,
-        },
+        padding = setmetatable({}, { __mode = "k" })
     }, { __index = layout_descriptor.object })
 end
 
@@ -89,12 +84,13 @@ function layout_descriptor.update(tag, clients)
     local column_index = 1
     local client_index = 1
 
-    local function update_next_column_descriptor(size)
+    local function update_next_column_descriptor(size, is_primary)
         local column_descriptor = self[column_index]
         if not column_descriptor then
             column_descriptor = { index = column_index }
             self[column_index] = column_descriptor
         end
+        column_descriptor.is_primary = is_primary
         column_descriptor.from = client_index
         column_descriptor.to = client_index + size - 1
         column_descriptor.last_size = column_descriptor.size
@@ -121,7 +117,7 @@ function layout_descriptor.update(tag, clients)
     local secondary_column_count = secondary_count <= tag.column_count and secondary_count or tag.column_count
 
     if primary_count > 0 then
-        update_next_column_descriptor(primary_count)
+        update_next_column_descriptor(primary_count, true)
     end
 
     if secondary_count > 0 and secondary_column_count > 0 then
@@ -142,6 +138,9 @@ function layout_descriptor.update(tag, clients)
     self.to = size
     self.last_size = self.size
     self.size = size
+    self.allow_padding = tag.master_fill_policy == "master_width_factor"
+        and size == 1
+        and self[1].is_primary
 
     for i = 1, self.size do
         normalize_factors(self[i])
