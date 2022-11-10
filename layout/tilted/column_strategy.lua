@@ -4,6 +4,13 @@ local fmod = math.fmod
 
 local column_strategy = {}
 
+--[[
+```
++─────+─────+─────+─────+─────+
+|  1  |  2  |  3  |  4  |  5  |
++─────+─────+─────+─────+─────+
+```
+]]
 column_strategy.linear = {}
 
 function column_strategy.linear.get_column_index(column_display_index, size, reverse)
@@ -18,6 +25,13 @@ function column_strategy.linear.get_column_display_index(column_index, size, rev
         or column_index
 end
 
+--[[
+```
++─────+─────+─────+─────+─────+
+|  5  |  3  |  1  |  2  |  4  |
++─────+─────+─────+─────+─────+
+```
+]]
 column_strategy.center = {}
 
 function column_strategy.center.get_column_index(column_display_index, size, reverse)
