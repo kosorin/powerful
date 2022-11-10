@@ -476,6 +476,11 @@ function tilted.object:arrange(parameters)
             max_size = max_size_behavior and infinity or 0,
         }
 
+        if column_descriptor.size == 0 then
+            column_data.min_size = 1
+            column_data.max_size = infinity
+        end
+
         for item_display_index = 1, column_descriptor.size do
             local item_index = item_display_index
             local item_descriptor = column_descriptor[item_index]
