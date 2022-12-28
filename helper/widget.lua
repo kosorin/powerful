@@ -1,16 +1,22 @@
-local matrix = require("gears.matrix")
+local capi = {
+    mouse = mouse,
+}
+local ipairs = ipairs
+local gmatrix = require("gears.matrix")
 
 
-local helper_widget = {}
+local widget_helper = {}
 
 local function find_geometry_core(widget, drawable, hierarchy)
-    if hierarchy:get_widget() == widget then
+    local hierarchy_widget = hierarchy:get_widget()
+    if hierarchy_widget == widget then
         local width, height = hierarchy:get_size()
-        local x, y, w, h = matrix.transform_rectangle(hierarchy:get_matrix_to_device(), 0, 0, width, height)
+        local matrix = hierarchy:get_matrix_to_device()
+        local x, y, w, h = matrix:transform_rectangle(0, 0, width, height)
         return {
             drawable = drawable,
             hierarchy = hierarchy,
-            widget = hierarchy:get_widget(),
+            widget = hierarchy_widget,
             widget_width = width,
             widget_height = height,
             x = x,
@@ -28,11 +34,54 @@ local function find_geometry_core(widget, drawable, hierarchy)
     end
 end
 
-function helper_widget.find_geometry(widget, wibox)
+function widget_helper.find_geometry(widget, wibox)
     local drawable = wibox._drawable
     if drawable._widget_hierarchy then
         return find_geometry_core(widget, drawable, drawable._widget_hierarchy)
     end
 end
 
-return helper_widget
+local function is_under_pointer_core(widget, x, y, hierarchy)
+    local matrix = hierarchy:get_matrix_from_device()
+    local x1, y1 = matrix:transform_point(x, y)
+    local x2, y2, w2, h2 = hierarchy:get_draw_extents()
+    if x1 < x2 or x1 >= x2 + w2 then
+        return
+    end
+    if y1 < y2 or y1 >= y2 + h2 then
+        return
+    end
+
+    if widget == hierarchy:get_widget() then
+        local width, height = hierarchy:get_size()
+        return x1 >= 0 and y1 >= 0 and x1 <= width and y1 <= height
+    end
+
+    for _, child in ipairs(hierarchy:get_children()) do
+        local result = is_under_pointer_core(widget, x, y, child)
+        if result ~= nil then
+            return result
+        end
+    end
+end
+
+function widget_helper.is_under_pointer(widget)
+    local wibox = capi.mouse.current_wibox
+    if not wibox then
+        return
+    end
+
+    local drawable = wibox._drawable
+    if not drawable._widget_hierarchy then
+        return
+    end
+
+    local coords = capi.mouse:coords()
+    local geometry = wibox:geometry()
+    local border_width = wibox.border_width
+    local x = coords.x - geometry.x - border_width
+    local y = coords.y - geometry.y - border_width
+    return is_under_pointer_core(widget, x, y, drawable._widget_hierarchy)
+end
+
+return widget_helper
