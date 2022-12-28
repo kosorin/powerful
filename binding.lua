@@ -70,7 +70,7 @@ binding.group.mouse_wheel = {
 }
 
 for i = 1, 10 do
-    table.insert(binding.group.numrow, { trigger = "#" .. i + 9, number = i == 10 and 0 or i })
+    table.insert(binding.group.numrow, { trigger = "#" .. i + 9, index = i, number = i == 10 and 0 or i })
 end
 
 for i = 1, 35 do
