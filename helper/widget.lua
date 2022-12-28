@@ -35,10 +35,13 @@ local function find_geometry_core(widget, drawable, hierarchy)
 end
 
 function widget_helper.find_geometry(widget, wibox)
-    local drawable = wibox._drawable
-    if drawable._widget_hierarchy then
-        return find_geometry_core(widget, drawable, drawable._widget_hierarchy)
+    wibox = wibox or capi.mouse.current_wibox
+    local drawable = wibox and wibox._drawable
+    local hierarchy = drawable and drawable._widget_hierarchy
+    if not hierarchy then
+        return
     end
+    return find_geometry_core(widget, drawable, hierarchy)
 end
 
 local function is_under_pointer_core(widget, x, y, hierarchy)
@@ -72,7 +75,8 @@ function widget_helper.is_under_pointer(widget)
     end
 
     local drawable = wibox._drawable
-    if not drawable._widget_hierarchy then
+    local hierarchy = drawable and drawable._widget_hierarchy
+    if not hierarchy then
         return
     end
 
@@ -81,7 +85,7 @@ function widget_helper.is_under_pointer(widget)
     local border_width = wibox.border_width
     local x = coords.x - geometry.x - border_width
     local y = coords.y - geometry.y - border_width
-    return is_under_pointer_core(widget, x, y, drawable._widget_hierarchy)
+    return is_under_pointer_core(widget, x, y, hierarchy)
 end
 
 return widget_helper
